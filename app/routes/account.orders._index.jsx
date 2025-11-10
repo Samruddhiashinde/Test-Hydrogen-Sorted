@@ -4,7 +4,7 @@ import {
   useNavigation,
   useSearchParams,
 } from 'react-router';
-import {useRef} from 'react';
+import { useRef } from 'react';
 import {
   Money,
   getPaginationVariables,
@@ -15,21 +15,21 @@ import {
   parseOrderFilters,
   ORDER_FILTER_FIELDS,
 } from '~/lib/orderFilters';
-import {CUSTOMER_ORDERS_QUERY} from '~/graphql/customer-account/CustomerOrdersQuery';
-import {PaginatedResourceSection} from '~/components/PaginatedResourceSection';
+import { CUSTOMER_ORDERS_QUERY } from '~/graphql/customer-account/CustomerOrdersQuery';
+import { PaginatedResourceSection } from '~/components/PaginatedResourceSection';
 
 /**
  * @type {Route.MetaFunction}
  */
 export const meta = () => {
-  return [{title: 'Orders'}];
+  return [{ title: 'Orders' }];
 };
 
 /**
  * @param {Route.LoaderArgs}
  */
-export async function loader({request, context}) {
-  const {customerAccount} = context;
+export async function loader({ request, context }) {
+  const { customerAccount } = context;
   const paginationVariables = getPaginationVariables(request, {
     pageBy: 20,
   });
@@ -38,7 +38,7 @@ export async function loader({request, context}) {
   const filters = parseOrderFilters(url.searchParams);
   const query = buildOrderSearchQuery(filters);
 
-  const {data, errors} = await customerAccount.query(CUSTOMER_ORDERS_QUERY, {
+  const { data, errors } = await customerAccount.query(CUSTOMER_ORDERS_QUERY, {
     variables: {
       ...paginationVariables,
       query,
@@ -50,13 +50,13 @@ export async function loader({request, context}) {
     throw Error('Customer orders not found');
   }
 
-  return {customer: data.customer, filters};
+  return { customer: data.customer, filters };
 }
 
 export default function Orders() {
   /** @type {LoaderReturnData} */
-  const {customer, filters} = useLoaderData();
-  const {orders} = customer;
+  const { customer, filters } = useLoaderData();
+  const { orders } = customer;
 
   return (
     <div className="orders">
@@ -72,14 +72,14 @@ export default function Orders() {
  *   filters: OrderFilterParams;
  * }}
  */
-function OrdersTable({orders, filters}) {
+function OrdersTable({ orders, filters }) {
   const hasFilters = !!(filters.name || filters.confirmationNumber);
 
   return (
     <div className="acccount-orders" aria-live="polite">
       {orders?.nodes.length ? (
         <PaginatedResourceSection connection={orders}>
-          {({node: order}) => <OrderItem key={order.id} order={order} />}
+          {({ node: order }) => <OrderItem key={order.id} order={order} />}
         </PaginatedResourceSection>
       ) : (
         <EmptyOrders hasFilters={hasFilters} />
@@ -91,7 +91,7 @@ function OrdersTable({orders, filters}) {
 /**
  * @param {{hasFilters?: boolean}}
  */
-function EmptyOrders({hasFilters = false}) {
+function EmptyOrders({ hasFilters = false }) {
   return (
     <div>
       {hasFilters ? (
@@ -120,7 +120,7 @@ function EmptyOrders({hasFilters = false}) {
  *   currentFilters: OrderFilterParams;
  * }}
  */
-function OrderSearchForm({currentFilters}) {
+function OrderSearchForm({ currentFilters }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigation = useNavigation();
   const isSearching =
@@ -202,7 +202,7 @@ function OrderSearchForm({currentFilters}) {
 /**
  * @param {{order: OrderItemFragment}}
  */
-function OrderItem({order}) {
+function OrderItem({ order }) {
   const fulfillmentStatus = flattenConnection(order.fulfillments)[0]?.status;
   return (
     <>
