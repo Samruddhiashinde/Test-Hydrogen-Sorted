@@ -1,16 +1,55 @@
-import {Link, useNavigate} from 'react-router';
-import {AddToCartButton} from './AddToCartButton';
-import {useAside} from './Aside';
+import { Link, useNavigate } from 'react-router';
+import { AddToCartButton } from './AddToCartButton';
+import { useAside } from './Aside';
 
 /**
  * @param {{
  *   productOptions: MappedProductOptions[];
  *   selectedVariant: ProductFragment['selectedOrFirstAvailableVariant'];
+ *   product: ProductFragment;
+ *   userEmail?: string | null;
+ *   userType?: string | null;
  * }}
  */
-export function ProductForm({productOptions, selectedVariant}) {
+export function ProductForm({
+  productOptions,
+  selectedVariant,
+  product,
+  userEmail,
+  userType,
+}) {
   const navigate = useNavigate();
-  const {open} = useAside();
+  const { open } = useAside();
+
+  const effectiveUserType =
+    userType || (userEmail ? 'logged_in' : 'visitor');
+
+  const handleAddToCartClick = () => {
+    // Open the cart aside as before
+    open('cart');
+
+    // Push add_to_cart event to dataLayer for GTM / Klaviyo
+    if (typeof window !== 'undefined' && window.dataLayer && selectedVariant) {
+      window.dataLayer.push({
+        event: 'add_to_cart',
+        user_email: userEmail || null,
+        user_type: effectiveUserType,
+        page_type: 'product',
+        product_id: product?.id ?? null,
+        product_title:
+          product?.title || selectedVariant?.product?.title || '',
+        product_handle:
+          product?.handle || selectedVariant?.product?.handle || '',
+        product_vendor: product?.vendor || '',
+        variant_id: selectedVariant?.id || null,
+        variant_title: selectedVariant?.title || '',
+        quantity: 1,
+        price: selectedVariant?.price?.amount ?? null,
+        currency: selectedVariant?.price?.currencyCode ?? null,
+      });
+    }
+  };
+
   return (
     <div className="product-form">
       {productOptions.map((option) => {
@@ -34,10 +73,8 @@ export function ProductForm({productOptions, selectedVariant}) {
                 } = value;
 
                 if (isDifferentProduct) {
-                  // SEO
                   // When the variant is a combined listing child product
-                  // that leads to a different url, we need to render it
-                  // as an anchor tag
+                  // that leads to a different url, render as a link
                   return (
                     <Link
                       className="product-options-item"
@@ -57,17 +94,12 @@ export function ProductForm({productOptions, selectedVariant}) {
                     </Link>
                   );
                 } else {
-                  // SEO
-                  // When the variant is an update to the search param,
-                  // render it as a button with javascript navigating to
-                  // the variant so that SEO bots do not index these as
-                  // duplicated links
+                  // When the variant is just an update to search params
                   return (
                     <button
                       type="button"
-                      className={`product-options-item${
-                        exists && !selected ? ' link' : ''
-                      }`}
+                      className={`product-options-item${exists && !selected ? ' link' : ''
+                        }`}
                       key={option.name + name}
                       style={{
                         border: selected
@@ -97,18 +129,16 @@ export function ProductForm({productOptions, selectedVariant}) {
       })}
       <AddToCartButton
         disabled={!selectedVariant || !selectedVariant.availableForSale}
-        onClick={() => {
-          open('cart');
-        }}
+        onClick={handleAddToCartClick}
         lines={
           selectedVariant
             ? [
-                {
-                  merchandiseId: selectedVariant.id,
-                  quantity: 1,
-                  selectedVariant,
-                },
-              ]
+              {
+                merchandiseId: selectedVariant.id,
+                quantity: 1,
+                selectedVariant,
+              },
+            ]
             : []
         }
       >
@@ -124,7 +154,7 @@ export function ProductForm({productOptions, selectedVariant}) {
  *   name: string;
  * }}
  */
-function ProductOptionSwatch({swatch, name}) {
+function ProductOptionSwatch({ swatch, name }) {
   const image = swatch?.image?.previewImage?.url;
   const color = swatch?.color;
 

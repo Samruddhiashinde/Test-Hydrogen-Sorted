@@ -23,6 +23,9 @@ export const meta = ({ data }) => [
   { rel: 'canonical', href: `/products/${data?.product.handle}` },
 ];
 
+/**
+ * @param {Route.LoaderArgs} args
+ */
 export async function loader(args) {
   const deferredData = loadDeferredData(args);
   const criticalData = await loadCriticalData(args);
@@ -108,12 +111,13 @@ export default function Product() {
           return;
         }
         let attempts = 0;
+        const maxAttempts = 50;
         const interval = setInterval(() => {
           attempts++;
           if (window.google_tag_manager && window.dataLayer) {
             clearInterval(interval);
             resolve(true);
-          } else if (attempts >= 50) {
+          } else if (attempts >= maxAttempts) {
             clearInterval(interval);
             resolve(false);
           }
@@ -124,23 +128,36 @@ export default function Product() {
     waitForGTM().then((isReady) => {
       if (!isReady) return;
 
+      // user info event for GTM/Klaviyo identify
       window.dataLayer.push({
         event: 'user_data_available',
         user_type: userType,
         user_email: userEmail || null,
       });
 
+      // product page view details (now with variant + price)
       window.dataLayer.push({
         event: 'product_page_view',
         page_type: 'product',
+
+        // product-level
         product_id: product.id,
         product_title: product.title,
         product_handle: product.handle,
         product_vendor: product.vendor,
+
+        // user-level
         user_email: userEmail || null,
+        user_type: userType,
+
+        // variant + pricing
+        variant_id: selectedVariant?.id ?? null,
+        variant_title: selectedVariant?.title ?? '',
+        price: selectedVariant?.price?.amount ?? null,
+        currency: selectedVariant?.price?.currencyCode ?? null,
       });
     });
-  }, [product, userEmail, userType]);
+  }, [product, userEmail, userType, selectedVariant]);
 
   return (
     <div className="product">
@@ -152,7 +169,14 @@ export default function Product() {
           compareAtPrice={selectedVariant?.compareAtPrice}
         />
         <br />
-        <ProductForm productOptions={productOptions} selectedVariant={selectedVariant} />
+        {/* ✅ pass product + user info into ProductForm so we can track Add To Cart */}
+        <ProductForm
+          productOptions={productOptions}
+          selectedVariant={selectedVariant}
+          product={product}
+          userEmail={userEmail}
+          userType={userType}
+        />
         <br />
         <br />
         <p>

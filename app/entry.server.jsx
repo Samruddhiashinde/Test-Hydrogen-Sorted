@@ -28,6 +28,8 @@ export default async function handleRequest(
       'https://*.google-analytics.com',
       'https://www.google.com',
       'https://*.google.com',
+      // 🔹 Klaviyo JS
+      'https://static.klaviyo.com',
     ],
     styleSrc: [
       "'self'",
@@ -53,6 +55,10 @@ export default async function handleRequest(
       'ws://localhost:*',
       'ws://127.0.0.1:*',
       'ws://*.tryhydrogen.dev:*',
+      // 🔹 Klaviyo tracking endpoints
+      'https://a.klaviyo.com',
+      'https://static.klaviyo.com',
+      'https://static-tracking.klaviyo.com',
     ],
     imgSrc: [
       "'self'",
@@ -66,6 +72,8 @@ export default async function handleRequest(
       'https://www.google-analytics.com',
       'https://*.google-analytics.com',
       'https://*.analytics.google.com',
+      // 🔹 In case Klaviyo uses pixel/images
+      'https://static.klaviyo.com',
     ],
     fontSrc: [
       "'self'",
