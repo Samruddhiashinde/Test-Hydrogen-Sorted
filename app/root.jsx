@@ -1,4 +1,3 @@
-import React, { useEffect, useTransition, useState } from 'react';
 import { Analytics, getShopAnalytics, useNonce } from '@shopify/hydrogen';
 import {
   Outlet,
@@ -10,11 +9,13 @@ import {
   ScrollRestoration,
   useRouteLoaderData,
 } from 'react-router';
+
 import favicon from '~/assets/favicon.svg';
 import { FOOTER_QUERY, HEADER_QUERY } from '~/lib/fragments';
 import resetStyles from '~/styles/reset.css?url';
 import appStyles from '~/styles/app.css?url';
 import { PageLayout } from './components/PageLayout';
+import { CUSTOMER_EMAIL_QUERY } from '~/graphql/customer-account/CustomerEmailQuery';
 
 export const shouldRevalidate = ({ formMethod, currentUrl, nextUrl }) => {
   if (formMethod && formMethod !== 'GET') return true;
@@ -28,7 +29,11 @@ export function links() {
     { rel: 'preconnect', href: 'https://shop.app' },
     { rel: 'preconnect', href: 'https://www.googletagmanager.com' },
     { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
-    { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossOrigin: 'anonymous' },
+    {
+      rel: 'preconnect',
+      href: 'https://fonts.gstatic.com',
+      crossOrigin: 'anonymous',
+    },
     { rel: 'dns-prefetch', href: 'https://www.googletagmanager.com' },
     { rel: 'icon', type: 'image/svg+xml', href: favicon },
     { rel: 'stylesheet', href: resetStyles },
@@ -39,11 +44,28 @@ export function links() {
 export async function loader(args) {
   const deferredData = loadDeferredData(args);
   const criticalData = await loadCriticalData(args);
-  const { storefront, env } = args.context;
+
+  const { storefront, env, customerAccount } = args.context;
+
+  let customerEmail = null;
+  try {
+    const isLoggedIn = await customerAccount.isLoggedIn();
+    if (isLoggedIn) {
+      const { data } = await customerAccount.query(CUSTOMER_EMAIL_QUERY, {
+        variables: {
+          language: customerAccount.i18n.language,
+        },
+      });
+      customerEmail = data?.customer?.emailAddress?.emailAddress ?? null;
+    }
+  } catch {
+    customerEmail = null;
+  }
 
   return {
     ...deferredData,
     ...criticalData,
+    customerEmail,
     publicStoreDomain: env.PUBLIC_STORE_DOMAIN,
     shop: getShopAnalytics({
       storefront,
@@ -73,6 +95,7 @@ async function loadCriticalData({ context }) {
 
 function loadDeferredData({ context }) {
   const { storefront, customerAccount, cart } = context;
+
   const footer = storefront
     .query(FOOTER_QUERY, {
       cache: storefront.CacheLong(),
@@ -87,44 +110,39 @@ function loadDeferredData({ context }) {
   };
 }
 
-function GoogleTagManager({ gtmId }) {
-  const [isPending, startTransition] = useTransition();
-  const [isLoaded, setIsLoaded] = useState(false);
-
-  useEffect(() => {
-    if (!gtmId || typeof window === 'undefined' || isLoaded) return;
-
-    // Use startTransition to avoid blocking hydration
-    startTransition(() => {
-      // Initialize dataLayer
-      window.dataLayer = window.dataLayer || [];
-
-      // Push GTM start event
-      window.dataLayer.push({
-        'gtm.start': new Date().getTime(),
-        event: 'gtm.js'
-      });
-
-      // Create and inject GTM script
-      const script = document.createElement('script');
-      script.async = true;
-      script.src = `https://www.googletagmanager.com/gtm.js?id=${gtmId}`;
-
-      const firstScript = document.getElementsByTagName('script')[0];
-      if (firstScript && firstScript.parentNode) {
-        firstScript.parentNode.insertBefore(script, firstScript);
-      }
-
-      setIsLoaded(true);
-    });
-  }, [gtmId, isLoaded]);
-
-  return null;
-}
-
 export function Layout({ children }) {
   const nonce = useNonce();
   const data = useRouteLoaderData('root');
+
+  // JSON-encode safely for inline scripts
+  const safeEmail = JSON.stringify(data?.customerEmail ?? null);
+
+  const dataLayerInitScript = `
+    window.dataLayer = window.dataLayer || [];
+  `;
+
+  const userInfoPushScript = `
+    if (${safeEmail} !== null) {
+      window.dataLayer.push({
+        event: 'user_info',
+        user_email: ${safeEmail}
+      });
+    }
+  `;
+
+  const gtmLoaderScript = `
+    (function(w,d,s,l,i,n){
+      w[l]=w[l]||[];
+      w[l].push({'gtm.start': new Date().getTime(), event:'gtm.js'});
+      var f=d.getElementsByTagName(s)[0],
+        j=d.createElement(s),
+        dl=l!='dataLayer'?'&l='+l:'';
+      j.async=true;
+      j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;
+      if(n) { j.setAttribute('nonce', '${nonce}'); }
+      f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','${data?.gtmId}');
+  `;
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -133,21 +151,43 @@ export function Layout({ children }) {
         <meta name="viewport" content="width=device-width,initial-scale=1" />
         <Links />
         <Meta />
+
+        {data?.gtmId && (
+          <>
+            <script
+              nonce={nonce || undefined}
+              suppressHydrationWarning
+              dangerouslySetInnerHTML={{ __html: dataLayerInitScript }}
+            />
+            <script
+              nonce={nonce || undefined}
+              suppressHydrationWarning
+              dangerouslySetInnerHTML={{ __html: userInfoPushScript }}
+            />
+            <script
+              nonce={nonce || undefined}
+              suppressHydrationWarning
+              dangerouslySetInnerHTML={{ __html: gtmLoaderScript }}
+            />
+          </>
+        )}
       </head>
-      <body>
+      {/* ✅ expose the email globally on body for hooks */}
+      <body data-customer-email={data?.customerEmail ?? ''}>
         {data?.gtmId && (
           <noscript>
             <iframe
               src={`https://www.googletagmanager.com/ns.html?id=${data.gtmId}`}
               height="0"
               width="0"
+              title="Google Tag Manager"
               style={{ display: 'none', visibility: 'hidden' }}
             />
           </noscript>
         )}
         {children}
-        <ScrollRestoration nonce={nonce} />
-        <Scripts nonce={nonce} />
+        <ScrollRestoration nonce={nonce || undefined} />
+        <Scripts nonce={nonce || undefined} />
       </body>
     </html>
   );
@@ -155,13 +195,11 @@ export function Layout({ children }) {
 
 export default function App() {
   const data = useRouteLoaderData('root');
-
   if (!data) return <Outlet />;
 
   return (
     <Analytics.Provider cart={data.cart} shop={data.shop} consent={data.consent}>
       <PageLayout {...data}>
-        {data.gtmId && <GoogleTagManager gtmId={data.gtmId} />}
         <Outlet />
       </PageLayout>
     </Analytics.Provider>
@@ -170,34 +208,26 @@ export default function App() {
 
 export function ErrorBoundary() {
   const error = useRouteError();
-  let errorMessage = 'Unknown error';
-  let errorStatus = 500;
+  let message = 'Unknown error';
+  let status = 500;
 
   if (isRouteErrorResponse(error)) {
-    errorMessage = error?.data?.message ?? error.data;
-    errorStatus = error.status;
+    message = error?.data?.message ?? error.data;
+    status = error.status;
   } else if (error instanceof Error) {
-    errorMessage = error.message;
+    message = error.message;
   }
 
   return (
     <div className="route-error">
       <h1>Oops</h1>
-      <h2>{errorStatus}</h2>
-      {errorMessage && (
-        <fieldset>
-          <pre>{errorMessage}</pre>
-        </fieldset>
-      )}
+      <h2>{status}</h2>
+      <pre>{message}</pre>
     </div>
   );
 }
 
-
-
-
 /** @typedef {LoaderReturnData} RootLoader */
-
 /** @typedef {import('react-router').ShouldRevalidateFunction} ShouldRevalidateFunction */
 /** @typedef {import('./+types/root').Route} Route */
 /** @typedef {import('@shopify/remix-oxygen').SerializeFrom<typeof loader>} LoaderReturnData */

@@ -18,13 +18,16 @@ export default async function handleRequest(
     defaultSrc: ["'self'"],
     scriptSrc: [
       "'strict-dynamic'",
-      "'self'",
-      "'unsafe-inline'",
       "'unsafe-eval'",
+      "'unsafe-inline'", // for inline GTM scripts and custom tags
       'https://www.googletagmanager.com',
       'https://*.googletagmanager.com',
       'https://tagmanager.google.com',
       'https://cdn.shopify.com',
+      'https://www.google-analytics.com',
+      'https://*.google-analytics.com',
+      'https://www.google.com',
+      'https://*.google.com',
     ],
     styleSrc: [
       "'self'",
@@ -43,6 +46,9 @@ export default async function handleRequest(
       'https://www.google-analytics.com',
       'https://*.google-analytics.com',
       'https://*.analytics.google.com',
+      'https://stats.g.doubleclick.net',
+      'https://region1.google-analytics.com',
+      'https://region1.analytics.google.com',
       'http://localhost:*',
       'ws://localhost:*',
       'ws://127.0.0.1:*',
@@ -57,18 +63,29 @@ export default async function handleRequest(
       'https://ssl.gstatic.com',
       'https://www.gstatic.com',
       'https://fonts.gstatic.com',
+      'https://www.google-analytics.com',
+      'https://*.google-analytics.com',
+      'https://*.analytics.google.com',
     ],
     fontSrc: [
       "'self'",
       'https://cdn.shopify.com',
       'https://fonts.gstatic.com',
     ],
-    frameSrc: ['https://checkout.shopify.com'],
+    frameSrc: [
+      'https://checkout.shopify.com',
+      'https://www.googletagmanager.com',
+    ],
+    objectSrc: ["'none'"],
   });
 
   const body = await renderToReadableStream(
     <NonceProvider>
-      <ServerRouter context={reactRouterContext} url={request.url} nonce={nonce} />
+      <ServerRouter
+        context={reactRouterContext}
+        url={request.url}
+        nonce={nonce}
+      />
     </NonceProvider>,
     {
       nonce,
@@ -77,7 +94,7 @@ export default async function handleRequest(
         console.error(error);
         responseStatusCode = 500;
       },
-    }
+    },
   );
 
   if (isbot(request.headers.get('user-agent'))) {
@@ -92,7 +109,6 @@ export default async function handleRequest(
     status: responseStatusCode,
   });
 }
-
 
 /** @typedef {import('@shopify/hydrogen').HydrogenRouterContextProvider} HydrogenRouterContextProvider */
 /** @typedef {import('react-router').EntryContext} EntryContext */
